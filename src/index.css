@@ -1,0 +1,86 @@
+@import "tailwindcss";
+
+@theme {
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+  --color-accent-500: #f59e0b;
+  --color-accent-600: #d97706;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background:
+    radial-gradient(ellipse 70% 40% at 50% -5%, rgba(59, 130, 246, 0.10), transparent 60%),
+    radial-gradient(ellipse 50% 30% at 100% 100%, rgba(245, 158, 11, 0.05), transparent 60%),
+    linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+  background-attachment: fixed;
+}
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.page-enter {
+  animation: fadeSlideIn 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.scale-in {
+  animation: scaleIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.55); }
+
+input, textarea, button { font-family: inherit; }
+
+/* Soft card shadow used across the app */
+.card-soft {
+  box-shadow:
+    0 1px 2px 0 rgba(15, 23, 42, 0.04),
+    0 4px 16px -4px rgba(15, 23, 42, 0.06);
+}
+.card-soft-hover {
+  transition: box-shadow 200ms ease, transform 200ms ease;
+}
+.card-soft-hover:hover {
+  box-shadow:
+    0 2px 4px 0 rgba(15, 23, 42, 0.05),
+    0 12px 32px -8px rgba(15, 23, 42, 0.10);
+  transform: translateY(-1px);
+}
+
+/* Safe-area insets for iOS bottom nav */
+.pb-safe { padding-bottom: max(0.5rem, env(safe-area-inset-bottom)); }
+.bottom-safe { bottom: max(0.5rem, env(safe-area-inset-bottom)); }
