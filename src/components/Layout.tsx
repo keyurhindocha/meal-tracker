@@ -30,10 +30,10 @@ export default function Layout() {
           </div>
           <button
             onClick={() => supabase.auth.signOut()}
-            className="ml-auto p-2 rounded-xl hover:bg-slate-100 active:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors"
-            title="Sign out"
+            className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-slate-100 active:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors text-sm font-medium"
           >
-            <LogOut className="w-5 h-5" />
+            <LogOut className="w-4 h-4" />
+            <span>Sign out</span>
           </button>
         </div>
       </header>
