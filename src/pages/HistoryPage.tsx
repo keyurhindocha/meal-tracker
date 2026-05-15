@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { format, startOfWeek, addWeeks, subWeeks, addDays } from 'date-fns';
 import { ChevronLeft, ChevronRight, Loader2, Calendar } from 'lucide-react';
-import { getMealsForDateRange } from '../storage';
+import { getMealsForDateRange, addOrUpdateMeal, deleteMeal } from '../storage';
 import type { MealType, MealEntry } from '../types';
 
 const mealTypes: MealType[] = ['breakfast', 'lunch', 'dinner'];
@@ -13,15 +13,30 @@ const mealColors: Record<MealType, string> = {
   dinner: 'bg-indigo-100/80 text-indigo-800 ring-indigo-200',
 };
 
+const editRingColors: Record<MealType, string> = {
+  breakfast: 'ring-amber-400 focus:ring-amber-500',
+  lunch: 'ring-sky-400 focus:ring-sky-500',
+  dinner: 'ring-indigo-400 focus:ring-indigo-500',
+};
+
 const typeLabel: Record<MealType, string> = {
   breakfast: 'B',
   lunch: 'L',
   dinner: 'D',
 };
 
+interface EditingCell {
+  dateStr: string;
+  type: MealType;
+}
+
 export default function HistoryPage() {
   const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
   const [meals, setMeals] = useState<MealEntry[] | null>(null);
+  const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const weekEnd = addDays(weekStart, 6);
   const startStr = format(weekStart, 'yyyy-MM-dd');
@@ -32,6 +47,10 @@ export default function HistoryPage() {
     getMealsForDateRange(startStr, endStr).then(setMeals);
   }, [startStr, endStr]);
 
+  useEffect(() => {
+    if (editingCell) inputRef.current?.focus();
+  }, [editingCell]);
+
   const days = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(weekStart, i);
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -40,6 +59,52 @@ export default function HistoryPage() {
   });
 
   const isCurrentWeek = format(startOfWeek(new Date()), 'yyyy-MM-dd') === startStr;
+
+  function startEdit(dateStr: string, type: MealType, currentName: string) {
+    setEditingCell({ dateStr, type });
+    setEditValue(currentName);
+  }
+
+  async function commitEdit() {
+    if (!editingCell || saving) return;
+    const { dateStr, type } = editingCell;
+    const trimmed = editValue.trim();
+    const existingMeal = meals?.find(m => m.date === dateStr && m.type === type);
+
+    setEditingCell(null);
+
+    if (trimmed === (existingMeal?.name ?? '')) return;
+
+    setSaving(true);
+    try {
+      if (trimmed === '' && existingMeal) {
+        await deleteMeal(existingMeal.id);
+        setMeals(prev => prev?.filter(m => m.id !== existingMeal.id) ?? null);
+      } else if (trimmed !== '') {
+        const updated = await addOrUpdateMeal(dateStr, type, trimmed);
+        setMeals(prev => {
+          if (!prev) return prev;
+          const without = prev.filter(m => !(m.date === dateStr && m.type === type));
+          return [...without, updated];
+        });
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function cancelEdit() {
+    setEditingCell(null);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'Enter') commitEdit();
+    if (e.key === 'Escape') cancelEdit();
+  }
+
+  function isEditing(dateStr: string, type: MealType) {
+    return editingCell?.dateStr === dateStr && editingCell?.type === type;
+  }
 
   return (
     <div>
@@ -114,14 +179,37 @@ export default function HistoryPage() {
                       </td>
                       {mealTypes.map(type => {
                         const meal = dayMeals.find(m => m.type === type);
+                        const editing = isEditing(dateStr, type);
                         return (
-                          <td key={type} className="px-5 py-3.5">
-                            {meal ? (
-                              <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium capitalize ring-1 ring-inset ${mealColors[type]}`}>
+                          <td
+                            key={type}
+                            className="px-5 py-3"
+                            onDoubleClick={() => !editing && startEdit(dateStr, type, meal?.name ?? '')}
+                          >
+                            {editing ? (
+                              <input
+                                ref={inputRef}
+                                value={editValue}
+                                onChange={e => setEditValue(e.target.value)}
+                                onBlur={commitEdit}
+                                onKeyDown={handleKeyDown}
+                                placeholder="Add meal…"
+                                className={`w-full px-2.5 py-1 text-xs rounded-full ring-1 ring-inset outline-none bg-white ${mealColors[type]} ${editRingColors[type]}`}
+                              />
+                            ) : meal ? (
+                              <span
+                                title="Double-click to edit"
+                                className={`inline-block cursor-pointer px-3 py-1 rounded-full text-xs font-medium capitalize ring-1 ring-inset ${mealColors[type]} hover:brightness-95 transition-all`}
+                              >
                                 {meal.name}
                               </span>
                             ) : (
-                              <span className="text-slate-300 text-xs">—</span>
+                              <span
+                                title="Double-click to add"
+                                className="text-slate-300 text-xs cursor-pointer hover:text-slate-400 transition-colors select-none"
+                              >
+                                —
+                              </span>
                             )}
                           </td>
                         );
@@ -161,24 +249,51 @@ export default function HistoryPage() {
                       </span>
                     )}
                   </div>
-                  {dayMeals.length > 0 ? (
-                    <div className="space-y-1.5">
-                      {dayMeals.map(m => (
-                        <div key={m.id} className="flex items-center gap-2">
-                          <span className={`shrink-0 w-5 h-5 rounded-md text-[10px] font-bold flex items-center justify-center ring-1 ring-inset ${mealColors[m.type]}`}>
-                            {typeLabel[m.type]}
+                  <div className="space-y-1.5">
+                    {mealTypes.map(type => {
+                      const meal = dayMeals.find(m => m.type === type);
+                      const editing = isEditing(dateStr, type);
+                      return (
+                        <div
+                          key={type}
+                          className="flex items-center gap-2"
+                          onDoubleClick={() => !editing && startEdit(dateStr, type, meal?.name ?? '')}
+                        >
+                          <span className={`shrink-0 w-5 h-5 rounded-md text-[10px] font-bold flex items-center justify-center ring-1 ring-inset ${mealColors[type]}`}>
+                            {typeLabel[type]}
                           </span>
-                          <span className="text-sm text-slate-700 capitalize truncate">{m.name}</span>
+                          {editing ? (
+                            <input
+                              ref={inputRef}
+                              value={editValue}
+                              onChange={e => setEditValue(e.target.value)}
+                              onBlur={commitEdit}
+                              onKeyDown={handleKeyDown}
+                              placeholder="Add meal…"
+                              className={`flex-1 px-2 py-0.5 text-sm rounded-lg ring-1 ring-inset outline-none bg-white ${mealColors[type]} ${editRingColors[type]}`}
+                            />
+                          ) : meal ? (
+                            <span className="text-sm text-slate-700 capitalize truncate cursor-pointer" title="Double-click to edit">
+                              {meal.name}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-slate-300 cursor-pointer" title="Double-click to add">—</span>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <span className="text-xs text-slate-400">No meals logged</span>
-                  )}
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })}
           </div>
+
+          {saving && (
+            <div className="fixed bottom-6 right-6 flex items-center gap-2 px-4 py-2.5 bg-slate-900/90 text-white text-xs font-medium rounded-xl shadow-lg backdrop-blur-sm">
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              Saving…
+            </div>
+          )}
         </>
       )}
     </div>
