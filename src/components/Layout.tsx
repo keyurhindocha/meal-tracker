@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, Link } from 'react-router-dom';
 import { UtensilsCrossed, Calendar, CalendarDays, BarChart3, /* Sparkles, */ LogOut } from 'lucide-react';
 import { supabase } from '../supabase';
 
@@ -18,16 +18,18 @@ export default function Layout() {
       {/* Glass-morphic sticky header */}
       <header className="sticky top-0 z-30 backdrop-blur-xl bg-white/70 border-b border-slate-200/60">
         <div className="max-w-6xl mx-auto flex items-center gap-3 px-4 py-3 md:px-8 md:py-4">
-          <div className="relative">
-            <div className="absolute inset-0 bg-primary-500/30 blur-xl rounded-full" />
-            <div className="relative w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-lg shadow-primary-500/20">
-              <UtensilsCrossed className="w-5 h-5 text-white" />
+          <Link to="/" className="flex items-center gap-3">
+            <div className="relative">
+              <div className="absolute inset-0 bg-primary-500/30 blur-xl rounded-full" />
+              <div className="relative w-9 h-9 rounded-xl bg-gradient-to-br from-primary-500 to-primary-700 flex items-center justify-center shadow-lg shadow-primary-500/20">
+                <UtensilsCrossed className="w-5 h-5 text-white" />
+              </div>
             </div>
-          </div>
-          <div className="flex flex-col leading-tight">
-            <h1 className="text-base md:text-lg font-bold text-slate-900 tracking-tight">Meal Tracker</h1>
-            <p className="hidden md:block text-xs text-slate-500">Log, analyze, discover</p>
-          </div>
+            <div className="flex flex-col leading-tight">
+              <h1 className="text-base md:text-lg font-bold text-slate-900 tracking-tight">Meal Tracker</h1>
+              <p className="hidden md:block text-xs text-slate-500">Log, analyze, discover</p>
+            </div>
+          </Link>
           <button
             onClick={() => supabase.auth.signOut()}
             className="ml-auto flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-slate-100 active:bg-slate-200 text-slate-400 hover:text-slate-700 transition-colors text-sm font-medium"
