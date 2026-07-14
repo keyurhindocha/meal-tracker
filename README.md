@@ -1,6 +1,6 @@
 # Meal Tracker
 
-A responsive web app for logging your daily meals (breakfast, lunch, dinner), browsing your eating history, visualizing patterns with rich analytics, and getting AI-powered meal recommendations from Google Gemini. Data is stored per-user in Supabase with Row Level Security, so it syncs across all your devices.
+A responsive web app for logging your daily meals (breakfast, lunch, dinner) and — more importantly — learning from them. The Analytics page turns your history into insights: your go-to meals, how often your regulars come back around, weekday habits, variety trends, and meals worth revisiting. Data is stored per-user in Supabase with Row Level Security, so it syncs across all your devices.
 
 ---
 
@@ -49,23 +49,30 @@ A responsive web app for logging your daily meals (breakfast, lunch, dinner), br
 - Mobile: stacked card layout optimized for small screens
 - Quick-jump to the current week; today's row is highlighted
 
-### Overview Dashboard
-- At-a-glance summary of recent activity, current streak, and completion rate
+### Overview Calendar
+- Six-week calendar grid with a colored dot per logged meal type (breakfast / lunch / dinner)
+- Hover any day to see exactly what you ate; jump back to the current period in one click
 
-### Analytics & Charts
-- **Stat cards**: total meals logged, unique meals, most common meal, longest gap, current streak, and completion rate
+### Analytics & Insights
+The Analytics page leads with pattern insights computed from your full meal history (a single query — everything else is derived client-side in [src/analytics.ts](src/analytics.ts)):
+
+- **Auto-generated insight cards** — headlines like *"Dal is your go-to (12% of everything you've eaten)"*, *"Chole is a Wednesday thing — 6 of 6 times"*, *"Due for a repeat: rajma — you usually have it every ~6 days, it's been 9"*, and how many new meals you tried in the last 30 days
+- **Your Rotation** — repeat cadence for every regular meal (eaten on 3+ days), with a status chip: `due now`, `Nd overdue`, or `in ~Nd`
+- **Weekday Habits** — your most-eaten meal for each day of the week
+- **Variety & Discovery** — per-month chart of new meals tried (bars) and variety % (line)
+- **Go-To Combos** — lunch + dinner pairs that recur on the same day
+- **One-Hit Wonders** — meals you've only had once, sorted by how long ago; candidates to revisit
 - **Most Eaten Meals** — horizontal bar chart (top 10)
 - **Meals by Type** — donut chart with percentage labels
-- **Weekly Logging Trend** — line chart over the last 12 weeks
-- **Haven't Had in a While** — ranked list with color-coded urgency (green < 7 days, amber 7–14 days, red > 14 days)
-- **Top Meal by Type** — your most-logged breakfast / lunch / dinner
+- **Weekly Logging Trend** — area chart over the last 12 weeks
+- **Month-over-Month** — meals logged, unique meals, new meals tried, and completion %, with deltas
+- **Haven't Had in a While** — ranked list with color-coded urgency (amber 7–14 days, red > 14 days)
+- **Stat cards** — total meals, current streak, best streak, longest gap, completion rate, and variety score
 
-### AI Meal Suggestions
-- Powered by **Google Gemini 2.5 Flash**
-- Analyzes your last 30 meal entries for context
-- Generates 5 personalized suggestions per meal type
-- Prioritizes variety and avoids recent repeats
-- Supports optional dietary preferences (e.g., "vegetarian", "high protein", "Korean food")
+### AI Meal Suggestions *(currently disabled)*
+- Powered by **Google Gemini 2.5 Flash** via [src/gemini.ts](src/gemini.ts)
+- Analyzes your last 30 meal entries and generates 5 personalized suggestions per meal type, prioritizing variety and avoiding recent repeats; supports optional dietary preferences (e.g., "vegetarian", "high protein")
+- The page exists at [src/pages/SuggestPage.tsx](src/pages/SuggestPage.tsx) but its route and nav entry are commented out in [src/App.tsx](src/App.tsx) and [src/components/Layout.tsx](src/components/Layout.tsx) — uncomment both (and set `VITE_GEMINI_API_KEY`) to re-enable it
 
 ---
 
@@ -161,7 +168,7 @@ If you want the AI Suggest page to work:
 2. Create a new API key.
 3. Save it for the next step.
 
-The rest of the app works perfectly without this — the AI Suggest page will just show a config-required message.
+The rest of the app works perfectly without this. Note that the Suggest page is currently disabled in the app anyway (see [Features](#ai-meal-suggestions-currently-disabled)), so you only need a key if you plan to re-enable it.
 
 ### 5. Configure environment variables
 
@@ -211,7 +218,8 @@ meal_tracker/
     ├── App.tsx                      # Auth-gated route definitions
     ├── AuthContext.tsx              # Supabase auth provider + hook
     ├── supabase.ts                  # Typed supabase-js client
-    ├── storage.ts                   # Data layer + analytics queries
+    ├── storage.ts                   # Data layer (Supabase reads/writes)
+    ├── analytics.ts                 # Pure analytics functions (insights, rotation, variety…)
     ├── gemini.ts                    # Google Gemini API integration
     ├── types.ts                     # TypeScript types + Database type
     ├── index.css                    # Tailwind imports + custom theme
@@ -222,9 +230,9 @@ meal_tracker/
         ├── LoginPage.tsx            # Sign-in / sign-up form
         ├── TodayPage.tsx            # Daily meal logging
         ├── HistoryPage.tsx          # Weekly history browser
-        ├── OverviewPage.tsx         # At-a-glance dashboard
-        ├── AnalyticsPage.tsx        # Charts and statistics
-        └── SuggestPage.tsx          # AI-powered recommendations
+        ├── OverviewPage.tsx         # Six-week calendar grid
+        ├── AnalyticsPage.tsx        # Insights, charts, and statistics
+        └── SuggestPage.tsx          # AI recommendations (route currently disabled)
 ```
 
 ---
@@ -235,7 +243,7 @@ meal_tracker/
 | ------------------------- | -------- | ------------------------------------------------------------- |
 | `VITE_SUPABASE_URL`       | Yes      | Your Supabase project URL                                     |
 | `VITE_SUPABASE_ANON_KEY`  | Yes      | Supabase `anon` (public) key — safe to expose in the browser  |
-| `VITE_GEMINI_API_KEY`     | No       | Google Gemini API key. Without it, only the AI page is gated. |
+| `VITE_GEMINI_API_KEY`     | No       | Google Gemini API key. Only needed if you re-enable the AI Suggest page. |
 
 > Variables prefixed with `VITE_` are bundled into the client at build time. **Do not put service-role keys or secrets there.** See [Deployment](#deployment) for the implication for the Gemini key.
 
@@ -277,7 +285,7 @@ If you'd rather edit the meals first, open [scripts/seed.mjs](scripts/seed.mjs) 
 
 ## Deployment
 
-The app is a static SPA, so it works on any static host: **Vercel**, **Netlify**, **Cloudflare Pages**, **GitHub Pages**, etc.
+The app is a static SPA, so it works on any static host: **Vercel**, **Netlify**, **Cloudflare Pages**, **GitHub Pages**, etc. This repo includes a [vercel.json](vercel.json) with the SPA rewrite (all routes → `index.html`), so a Vercel import works out of the box — just set the environment variables in the project settings.
 
 ```bash
 npm run build           # outputs to dist/
@@ -320,8 +328,8 @@ Supabase requires email confirmation by default. Either check your inbox (includ
 **"relation 'public.meal_entries' does not exist"**
 The migration hasn't run yet. See [Step 3](#3-run-the-database-migration).
 
-**AI Suggest page shows a "key not configured" banner**
-Add `VITE_GEMINI_API_KEY` to your `.env` and restart `npm run dev`.
+**Can't find the AI Suggest page**
+Its route and nav entry are commented out in [src/App.tsx](src/App.tsx) and [src/components/Layout.tsx](src/components/Layout.tsx). Uncomment both, add `VITE_GEMINI_API_KEY` to your `.env`, and restart `npm run dev`.
 
 **Empty charts on the Analytics page**
 You probably haven't logged enough meals yet. Try the [seed script](#seeding-sample-data) to populate a few weeks of sample data.
