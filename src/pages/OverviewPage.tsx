@@ -73,11 +73,17 @@ export default function OverviewPage() {
           <button onClick={goBack} className="p-2 rounded-xl hover:bg-slate-100 active:bg-slate-200 text-slate-500 transition-colors" aria-label="Earlier">
             <ChevronLeft className="w-5 h-5" />
           </button>
-          {!showingCurrent && (
-            <button onClick={goToNow} className="px-3 py-1.5 text-xs font-semibold text-primary-700 bg-primary-50 rounded-xl hover:bg-primary-100 transition-colors">
-              Current
-            </button>
-          )}
+          <button
+            onClick={goToNow}
+            disabled={showingCurrent}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-colors ${
+              showingCurrent
+                ? 'text-slate-400 bg-slate-100 cursor-default'
+                : 'text-primary-700 bg-primary-50 hover:bg-primary-100'
+            }`}
+          >
+            Current
+          </button>
           <button onClick={goForward} className="p-2 rounded-xl hover:bg-slate-100 active:bg-slate-200 text-slate-500 transition-colors" aria-label="Later">
             <ChevronRight className="w-5 h-5" />
           </button>

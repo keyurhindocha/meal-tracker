@@ -176,14 +176,17 @@ export default function HistoryPage() {
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          {!isCurrentWeek && (
-            <button
-              onClick={() => goToWeekOf(new Date())}
-              className="px-3 py-1.5 text-xs font-semibold text-primary-700 bg-primary-50 rounded-xl hover:bg-primary-100 transition-colors"
-            >
-              This Week
-            </button>
-          )}
+          <button
+            onClick={() => goToWeekOf(new Date())}
+            disabled={isCurrentWeek}
+            className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-colors ${
+              isCurrentWeek
+                ? 'text-slate-400 bg-slate-100 cursor-default'
+                : 'text-primary-700 bg-primary-50 hover:bg-primary-100'
+            }`}
+          >
+            This Week
+          </button>
           {/* Wrapper owns dismissal so a click on the toggle doesn't close-then-reopen */}
           <div ref={calendarRef} className="relative">
             <button
