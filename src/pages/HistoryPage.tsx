@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
-import { format, startOfWeek, addWeeks, subWeeks, addDays } from 'date-fns';
-import { ChevronLeft, ChevronRight, Loader2, Calendar } from 'lucide-react';
+import { useSearchParams } from 'react-router-dom';
+import {
+  format, startOfWeek, addWeeks, subWeeks, addDays,
+  startOfMonth, addMonths, subMonths, isSameDay, isSameMonth,
+} from 'date-fns';
+import { ChevronLeft, ChevronRight, Loader2, Calendar, CalendarDays } from 'lucide-react';
 import { getMealsForDateRange, addOrUpdateMeal, deleteMeal } from '../storage';
 import type { MealType, MealEntry } from '../types';
 
@@ -31,12 +35,44 @@ interface EditingCell {
 }
 
 export default function HistoryPage() {
-  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date()));
+  const [searchParams, setSearchParams] = useSearchParams();
   const [meals, setMeals] = useState<MealEntry[] | null>(null);
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [editValue, setEditValue] = useState('');
   const [saving, setSaving] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  // Dismiss the date picker on outside click / Escape.
+  useEffect(() => {
+    if (!showCalendar) return;
+    function handlePointerDown(e: MouseEvent) {
+      if (!calendarRef.current?.contains(e.target as Node)) setShowCalendar(false);
+    }
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') setShowCalendar(false);
+    }
+    document.addEventListener('mousedown', handlePointerDown);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [showCalendar]);
+
+  // The URL is the source of truth for which week is shown, so links like
+  // /history?date=2026-01-19 (from Analytics) land on the right week and
+  // any week stays bookmarkable.
+  const dateParam = searchParams.get('date');
+  const parsedParam = dateParam ? new Date(`${dateParam}T00:00:00`) : null;
+  const weekStart = startOfWeek(
+    parsedParam && !isNaN(parsedParam.getTime()) ? parsedParam : new Date()
+  );
+
+  function goToWeekOf(date: Date) {
+    setSearchParams({ date: format(startOfWeek(date), 'yyyy-MM-dd') }, { replace: true });
+  }
 
   const weekEnd = addDays(weekStart, 6);
   const startStr = format(weekStart, 'yyyy-MM-dd');
@@ -123,7 +159,7 @@ export default function HistoryPage() {
         </div>
         <div className="flex items-center gap-1 mt-1">
           <button
-            onClick={() => setWeekStart(subWeeks(weekStart, 1))}
+            onClick={() => goToWeekOf(subWeeks(weekStart, 1))}
             className="p-2 rounded-xl hover:bg-slate-100 active:bg-slate-200 text-slate-500 transition-colors"
             aria-label="Previous week"
           >
@@ -131,14 +167,39 @@ export default function HistoryPage() {
           </button>
           {!isCurrentWeek && (
             <button
-              onClick={() => setWeekStart(startOfWeek(new Date()))}
+              onClick={() => goToWeekOf(new Date())}
               className="px-3 py-1.5 text-xs font-semibold text-primary-700 bg-primary-50 rounded-xl hover:bg-primary-100 transition-colors"
             >
               This Week
             </button>
           )}
+          {/* Wrapper owns dismissal so a click on the toggle doesn't close-then-reopen */}
+          <div ref={calendarRef} className="relative">
+            <button
+              onClick={() => setShowCalendar(v => !v)}
+              className={`block p-2 rounded-xl transition-colors ${
+                showCalendar
+                  ? 'bg-primary-50 text-primary-700'
+                  : 'hover:bg-slate-100 active:bg-slate-200 text-slate-500'
+              }`}
+              aria-label="Jump to date"
+              aria-expanded={showCalendar}
+              title="Jump to date"
+            >
+              <CalendarDays className="w-5 h-5" />
+            </button>
+            {showCalendar && (
+              <DatePickerPopover
+                weekStart={weekStart}
+                onSelect={date => {
+                  goToWeekOf(date);
+                  setShowCalendar(false);
+                }}
+              />
+            )}
+          </div>
           <button
-            onClick={() => setWeekStart(addWeeks(weekStart, 1))}
+            onClick={() => goToWeekOf(addWeeks(weekStart, 1))}
             className="p-2 rounded-xl hover:bg-slate-100 active:bg-slate-200 text-slate-500 transition-colors"
             aria-label="Next week"
           >
@@ -296,6 +357,84 @@ export default function HistoryPage() {
           )}
         </>
       )}
+    </div>
+  );
+}
+
+function DatePickerPopover({ weekStart, onSelect }: {
+  weekStart: Date;
+  onSelect: (date: Date) => void;
+}) {
+  const [month, setMonth] = useState(() => startOfMonth(weekStart));
+
+  const gridStart = startOfWeek(startOfMonth(month));
+  const cells = Array.from({ length: 42 }, (_, i) => addDays(gridStart, i));
+  const weekEndTime = addDays(weekStart, 6).getTime();
+  const today = new Date();
+
+  return (
+    <div className="absolute right-0 top-full mt-2 z-40 w-[17rem] bg-white rounded-2xl card-soft ring-1 ring-slate-200/60 p-3">
+      <div className="flex items-center justify-between mb-2">
+        <button
+          onClick={() => setMonth(subMonths(month, 1))}
+          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+          aria-label="Previous month"
+        >
+          <ChevronLeft className="w-4 h-4" />
+        </button>
+        <span className="text-sm font-bold text-slate-800">{format(month, 'MMMM yyyy')}</span>
+        <button
+          onClick={() => setMonth(addMonths(month, 1))}
+          className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"
+          aria-label="Next month"
+        >
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
+
+      <div className="grid grid-cols-7 mb-1">
+        {dayNames.map((name, i) => (
+          <div key={i} className="text-center text-[10px] font-bold uppercase text-slate-400 py-1">
+            {name[0]}
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7 gap-y-0.5">
+        {cells.map((date, i) => {
+          const time = date.getTime();
+          const inSelectedWeek = time >= weekStart.getTime() && time <= weekEndTime;
+          const isToday = isSameDay(date, today);
+          // A selected week fills exactly one row, so round only its Sun/Sat ends.
+          const bandEdges = `${i % 7 === 0 ? 'rounded-l-lg ' : ''}${i % 7 === 6 ? 'rounded-r-lg' : ''}`;
+          return (
+            <button
+              key={date.toISOString()}
+              onClick={() => onSelect(date)}
+              className={`h-8 text-xs transition-colors ${
+                inSelectedWeek
+                  ? `bg-primary-500 text-white font-bold ${bandEdges}`
+                  : `rounded-lg hover:bg-slate-100 ${
+                      isToday
+                        ? 'text-primary-700 font-bold'
+                        : isSameMonth(date, month)
+                        ? 'text-slate-700 font-medium'
+                        : 'text-slate-300'
+                    }`
+              }`}
+            >
+              {format(date, 'd')}
+            </button>
+          );
+        })}
+      </div>
+
+      <button
+        onClick={() => onSelect(new Date())}
+        className="w-full mt-2 py-1.5 text-xs font-semibold text-primary-700 bg-primary-50 rounded-xl hover:bg-primary-100 transition-colors"
+      >
+        Jump to today
+      </button>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { Link } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend, AreaChart, Area, ComposedChart, Line,
@@ -6,7 +7,7 @@ import {
 import {
   Loader2, Flame, UtensilsCrossed, CheckCircle2, Sparkles, Sun, Cloud, Moon,
   Trophy, CalendarX2, TrendingUp, TrendingDown, Minus, BarChart3,
-  Heart, CalendarHeart, RefreshCw, Compass, Repeat, Link2, Star,
+  Heart, CalendarHeart, RefreshCw, Compass, Repeat, Link2, Star, ChevronRight,
 } from 'lucide-react';
 import { getAllMeals } from '../storage';
 import {
@@ -424,18 +425,27 @@ export default function AnalyticsPage() {
 
       {/* Haven't had in a while */}
       <div className="bg-white rounded-2xl card-soft p-5">
-        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-4">Haven't Had in a While</h3>
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">Haven't Had in a While</h3>
+        <p className="text-xs text-slate-400 mb-3">Tap a meal to open that week in History, where you can edit it</p>
         <div className="divide-y divide-slate-50">
           {lastEaten.slice(0, 10).map(({ name, daysAgo, lastDate }) => (
-            <div key={name} className="flex items-center justify-between py-2.5 group">
-              <span className="text-slate-700 font-medium capitalize truncate pr-2">{name}</span>
+            <Link
+              key={name}
+              to={`/history?date=${lastDate}`}
+              title={`Go to ${lastDate} in History`}
+              className="flex items-center justify-between py-2.5 group -mx-2 px-2 rounded-lg hover:bg-slate-50 transition-colors"
+            >
+              <span className="flex items-center gap-1.5 min-w-0 pr-2">
+                <span className="text-slate-700 font-medium capitalize truncate group-hover:text-primary-700 transition-colors">{name}</span>
+                <ChevronRight className="w-3.5 h-3.5 shrink-0 text-slate-300 group-hover:text-primary-500 transition-colors" />
+              </span>
               <div className="text-right flex items-center gap-2 shrink-0">
                 <span className={`text-sm font-bold tabular-nums ${daysAgo > 14 ? 'text-rose-500' : daysAgo > 7 ? 'text-amber-500' : 'text-slate-500'}`}>
                   {daysAgo}d
                 </span>
                 <span className="text-[10px] text-slate-400 hidden md:inline">{lastDate}</span>
               </div>
-            </div>
+            </Link>
           ))}
         </div>
       </div>

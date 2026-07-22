@@ -3,8 +3,8 @@ import { UtensilsCrossed, Calendar, CalendarDays, BarChart3, /* Sparkles, */ Log
 import { supabase } from '../supabase';
 
 const navItems = [
-  { to: '/', icon: UtensilsCrossed, label: 'Today' },
   { to: '/history', icon: Calendar, label: 'History' },
+  { to: '/', icon: UtensilsCrossed, label: 'Today' },
   { to: '/overview', icon: CalendarDays, label: 'Overview' },
   { to: '/analytics', icon: BarChart3, label: 'Analytics' },
   // { to: '/suggest', icon: Sparkles, label: 'Suggest' },
