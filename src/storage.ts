@@ -25,6 +25,7 @@ export async function addOrUpdateMeal(date: string, type: MealType, name: string
     .single();
 
   if (error) throw error;
+  invalidateMealNames();
   return data as MealEntry;
 }
 
@@ -35,6 +36,7 @@ export async function deleteMeal(id: string): Promise<void> {
     .eq('id', id);
 
   if (error) throw error;
+  invalidateMealNames();
 }
 
 export async function getMealsForDate(date: string): Promise<DayMeals> {
@@ -64,8 +66,18 @@ export async function getMealsForDateRange(startDate: string, endDate: string): 
   return data as MealEntry[];
 }
 
+// Autocomplete hits this on every keystroke, so keep the derived name list in
+// memory and drop it whenever a meal is written or removed.
+let mealNamesCache: string[] | null = null;
+
+export function invalidateMealNames(): void {
+  mealNamesCache = null;
+}
+
 export async function getUniqueMealNames(): Promise<string[]> {
+  if (mealNamesCache) return mealNamesCache;
   const meals = await getAllMeals();
   const names = new Set(meals.map(m => m.name.toLowerCase()));
-  return Array.from(names).sort();
+  mealNamesCache = Array.from(names).sort();
+  return mealNamesCache;
 }

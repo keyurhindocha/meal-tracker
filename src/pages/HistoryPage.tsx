@@ -4,8 +4,9 @@ import {
   format, startOfWeek, addWeeks, subWeeks, addDays,
   startOfMonth, addMonths, subMonths, isSameDay, isSameMonth,
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, Loader2, Calendar, CalendarDays } from 'lucide-react';
-import { getMealsForDateRange, addOrUpdateMeal, deleteMeal } from '../storage';
+import { ChevronLeft, ChevronRight, Loader2, Calendar, CalendarDays, Search, X } from 'lucide-react';
+import { getMealsForDateRange, getAllMeals, addOrUpdateMeal, deleteMeal } from '../storage';
+import MealNameInput from '../components/MealNameInput';
 import type { MealType, MealEntry } from '../types';
 
 const mealTypes: MealType[] = ['breakfast', 'lunch', 'dinner'];
@@ -41,7 +42,9 @@ export default function HistoryPage() {
   const [editValue, setEditValue] = useState('');
   const [saving, setSaving] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const [query, setQuery] = useState('');
+  const [allMeals, setAllMeals] = useState<MealEntry[] | null>(null);
+  const [loadingAll, setLoadingAll] = useState(false);
   const calendarRef = useRef<HTMLDivElement>(null);
 
   // Dismiss the date picker on outside click / Escape.
@@ -83,10 +86,6 @@ export default function HistoryPage() {
     getMealsForDateRange(startStr, endStr).then(setMeals);
   }, [startStr, endStr]);
 
-  useEffect(() => {
-    if (editingCell) inputRef.current?.focus();
-  }, [editingCell]);
-
   const days = Array.from({ length: 7 }, (_, i) => {
     const date = addDays(weekStart, i);
     const dateStr = format(date, 'yyyy-MM-dd');
@@ -124,6 +123,7 @@ export default function HistoryPage() {
           return [...without, updated];
         });
       }
+      setAllMeals(null); // invalidate the search cache
     } finally {
       setSaving(false);
     }
@@ -133,14 +133,25 @@ export default function HistoryPage() {
     setEditingCell(null);
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') commitEdit();
-    if (e.key === 'Escape') cancelEdit();
-  }
-
   function isEditing(dateStr: string, type: MealType) {
     return editingCell?.dateStr === dateStr && editingCell?.type === type;
   }
+
+  // Search spans all history, so pull the full set the first time it's needed
+  // rather than on every page load. Edits invalidate it (see commitEdit).
+  function loadAllMeals() {
+    if (allMeals || loadingAll) return;
+    setLoadingAll(true);
+    getAllMeals()
+      .then(setAllMeals)
+      .finally(() => setLoadingAll(false));
+  }
+
+  const trimmedQuery = query.trim().toLowerCase();
+  const isSearching = trimmedQuery !== '';
+  const results = isSearching && allMeals
+    ? allMeals.filter(m => m.name.toLowerCase().includes(trimmedQuery))
+    : [];
 
   return (
     <div>
@@ -208,14 +219,56 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {meals === null ? (
+      {/* Search across all history */}
+      <div className="relative mb-5">
+        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+        <input
+          value={query}
+          onFocus={loadAllMeals}
+          onChange={e => {
+            setQuery(e.target.value);
+            loadAllMeals();
+          }}
+          onKeyDown={e => e.key === 'Escape' && setQuery('')}
+          placeholder="Search all meals…"
+          className="w-full pl-10 pr-10 py-2.5 text-sm bg-white rounded-xl card-soft ring-1 ring-slate-200/60 outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-primary-400 transition-shadow"
+        />
+        {isSearching && (
+          <button
+            onClick={() => setQuery('')}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"
+            aria-label="Clear search"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
+      {isSearching ? (
+        allMeals === null ? (
+          <div className="flex justify-center py-16">
+            <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
+          </div>
+        ) : (
+          <SearchResults
+            results={results}
+            query={trimmedQuery}
+            onPick={date => {
+              goToWeekOf(new Date(`${date}T00:00:00`));
+              setQuery('');
+            }}
+          />
+        )
+      ) : meals === null ? (
         <div className="flex justify-center py-16">
           <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
         </div>
       ) : (
         <>
           {/* Desktop table */}
-          <div className="hidden md:block bg-white rounded-2xl card-soft overflow-hidden">
+          {/* overflow-hidden rounds the table corners, but would clip the
+              autocomplete dropdown — so drop it while a cell is being edited. */}
+          <div className={`hidden md:block bg-white rounded-2xl card-soft ${editingCell ? '' : 'overflow-hidden'}`}>
             <table className="w-full">
               <thead>
                 <tr className="border-b border-slate-100">
@@ -248,12 +301,12 @@ export default function HistoryPage() {
                             onDoubleClick={() => !editing && startEdit(dateStr, type, meal?.name ?? '')}
                           >
                             {editing ? (
-                              <input
-                                ref={inputRef}
+                              <MealNameInput
                                 value={editValue}
-                                onChange={e => setEditValue(e.target.value)}
+                                onChange={setEditValue}
+                                onCommit={commitEdit}
+                                onCancel={cancelEdit}
                                 onBlur={commitEdit}
-                                onKeyDown={handleKeyDown}
                                 placeholder="Add meal…"
                                 className={`w-full px-2.5 py-1 text-xs rounded-full ring-1 ring-inset outline-none bg-white ${mealColors[type]} ${editRingColors[type]}`}
                               />
@@ -324,14 +377,15 @@ export default function HistoryPage() {
                             {typeLabel[type]}
                           </span>
                           {editing ? (
-                            <input
-                              ref={inputRef}
+                            <MealNameInput
                               value={editValue}
-                              onChange={e => setEditValue(e.target.value)}
+                              onChange={setEditValue}
+                              onCommit={commitEdit}
+                              onCancel={cancelEdit}
                               onBlur={commitEdit}
-                              onKeyDown={handleKeyDown}
                               placeholder="Add meal…"
-                              className={`flex-1 px-2 py-0.5 text-sm rounded-lg ring-1 ring-inset outline-none bg-white ${mealColors[type]} ${editRingColors[type]}`}
+                              wrapperClassName="flex-1 min-w-0"
+                              className={`w-full px-2 py-0.5 text-sm rounded-lg ring-1 ring-inset outline-none bg-white ${mealColors[type]} ${editRingColors[type]}`}
                             />
                           ) : meal ? (
                             <span className="text-sm text-slate-700 capitalize truncate cursor-pointer" title="Double-click to edit">
@@ -349,15 +403,91 @@ export default function HistoryPage() {
             })}
           </div>
 
-          {saving && (
-            <div className="fixed bottom-6 right-6 flex items-center gap-2 px-4 py-2.5 bg-slate-900/90 text-white text-xs font-medium rounded-xl shadow-lg backdrop-blur-sm">
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              Saving…
-            </div>
-          )}
         </>
       )}
+
+      {saving && (
+        <div className="fixed bottom-6 right-6 flex items-center gap-2 px-4 py-2.5 bg-slate-900/90 text-white text-xs font-medium rounded-xl shadow-lg backdrop-blur-sm">
+          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+          Saving…
+        </div>
+      )}
     </div>
+  );
+}
+
+function SearchResults({ results, query, onPick }: {
+  results: MealEntry[];
+  query: string;
+  onPick: (date: string) => void;
+}) {
+  if (results.length === 0) {
+    return (
+      <div className="bg-white rounded-2xl card-soft p-12 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center mx-auto mb-4">
+          <Search className="w-7 h-7 text-slate-300" />
+        </div>
+        <p className="text-slate-700 font-semibold">No meals match “{query}”</p>
+        <p className="text-slate-400 text-sm mt-1">Try a different search term</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl card-soft overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between gap-2">
+        <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+          {results.length} result{results.length !== 1 ? 's' : ''} for “{query}”
+        </p>
+        <p className="text-[10px] text-slate-400 hidden sm:block">Tap a result to open that week</p>
+      </div>
+      <div className="divide-y divide-slate-50">
+        {results.map(meal => {
+          const date = new Date(`${meal.date}T00:00:00`);
+          return (
+            <button
+              key={meal.id}
+              onClick={() => onPick(meal.date)}
+              className="w-full flex items-center gap-3 px-5 py-3 text-left hover:bg-slate-50/80 transition-colors group"
+            >
+              <span
+                className={`shrink-0 w-6 h-6 rounded-md text-[10px] font-bold flex items-center justify-center ring-1 ring-inset ${mealColors[meal.type]}`}
+                title={meal.type}
+              >
+                {typeLabel[meal.type]}
+              </span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-sm font-medium text-slate-800 capitalize truncate">
+                  {highlightMatch(meal.name, query)}
+                </span>
+                <span className="block text-xs text-slate-400 capitalize">{meal.type}</span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className="block text-sm font-semibold text-slate-600 tabular-nums">
+                  {format(date, 'MMM d, yyyy')}
+                </span>
+                <span className="block text-xs text-slate-400">{dayNames[date.getDay()]}</span>
+              </span>
+              <ChevronRight className="w-4 h-4 shrink-0 text-slate-300 group-hover:text-primary-500 transition-colors" />
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function highlightMatch(name: string, query: string) {
+  const idx = name.toLowerCase().indexOf(query);
+  if (idx === -1) return name;
+  return (
+    <>
+      {name.slice(0, idx)}
+      <mark className="bg-amber-200/70 text-slate-900 rounded px-0.5">
+        {name.slice(idx, idx + query.length)}
+      </mark>
+      {name.slice(idx + query.length)}
+    </>
   );
 }
 
